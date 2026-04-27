@@ -1,217 +1,29 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>MIG-17: Storm - Mouse & Touch Edition</title>
-    <style>
-        body { margin:0; overflow:hidden; background:#2980b9; font-family: sans-serif; touch-action: none; user-select: none; -webkit-user-select: none; }
-        canvas { display:block; cursor: crosshair; } /* Fare imlecini hedef artı işareti yapar */
-        #ui { position:absolute; top:20px; width:100%; display:flex; justify-content:space-around; color:white; font-size:18px; pointer-events:none; z-index:10; text-shadow: 1px 1px 3px #000; }
-        #overlay { position: absolute; top:0; left:0; width:100%; height:100%; display:flex; flex-direction:column; justify-content:center; align-items:center; background: rgba(0,0,0,0.6); z-index:100; }
-        #msg { color: #ff4b2b; font-size: 45px; font-weight:900; text-align: center; text-shadow: 0 0 15px #000; margin-bottom: 20px; }
-        .btn { padding:15px 35px; background: #ff4b2b; color:white; border-radius:12px; font-size:20px; font-weight:bold; border:none; box-shadow: 0 5px 0 #b32d15; cursor: pointer; }
-        #pauseBtn { position: absolute; top: 15px; right: 15px; width: 45px; height: 45px; background: rgba(255,255,255,0.2); color: white; border-radius: 50%; display: flex; justify-content:center; align-items:center; font-size: 20px; z-index: 150; border: 1px solid white; cursor: pointer; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>MIG-17: Protected</title>
+<style>
+body{margin:0;overflow:hidden;background:#2980b9;font-family:sans-serif;touch-action:none;user-select:none;-webkit-user-select:none}
+canvas{display:block;cursor:crosshair}
+#ui{position:absolute;top:20px;width:100%;display:flex;justify-content:space-around;color:#fff;font-size:18px;pointer-events:none;z-index:10;text-shadow:1px 1px 3px #000}
+#overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;background:rgba(0,0,0,.6);z-index:100}
+#msg{color:#ff4b2b;font-size:45px;font-weight:900;text-align:center;text-shadow:0 0 15px #000;margin-bottom:20px}
+.btn{padding:15px 35px;background:#ff4b2b;color:#fff;border-radius:12px;font-size:20px;font-weight:bold;border:none;box-shadow:0 5px 0 #b32d15;cursor:pointer}
+#pauseBtn{position:absolute;top:15px;right:15px;width:45px;height:45px;background:rgba(255,255,255,.2);color:#fff;border-radius:50%;display:flex;justify-content:center;align-items:center;font-size:20px;z-index:150;border:1px solid #fff;cursor:pointer}
+</style>
 </head>
-<body>
-
-<div id="ui">
-    <div>SKOR: <span id="score">0</span></div>
-    <div>EN İYİ: <span id="best">0</span></div>
-</div>
-
-<div id="pauseBtn" onclick="togglePause(event)">II</div>
-
+<body oncontextmenu="return false;">
+<div id="ui"><div>SKOR: <span id="_s_">0</span></div><div>EN İYİ: <span id="_b_">0</span></div></div>
+<div id="pauseBtn" onclick="_tp(event)">II</div>
 <div id="overlay">
-    <div id="msg">MIG-17<br>DÖNER STORM</div>
-    <button class="btn" id="mainBtn" onclick="handleBtnClick()">OYUNU BAŞLAT</button>
+<div id="msg">MIG-17<br>DÖNER STORM</div>
+<button class="btn" id="_mb" onclick="_hbc()">OYUNU BAŞLAT</button>
 </div>
-
-<canvas id="game"></canvas>
-
+<canvas id="_cv"></canvas>
 <script>
-    const canvas = document.getElementById("game");
-    const ctx = canvas.getContext("2d", { alpha: false });
-    const overlay = document.getElementById("overlay");
-    const msgDisplay = document.getElementById("msg");
-    const mainBtn = document.getElementById("mainBtn");
-
-    const sndShoot = new Audio("shoot.mp3");
-    const sndExplode = new Audio("explosion.mp3");
-    sndShoot.volume = 0.2;
-
-    const images = {};
-    const config = {
-        'mig': 'mig.png',
-        'durum': 'durum-et-doner_b.png',
-        'enemy_franco': 'enemy_franco.png', 'hhh': 'hhh.png',
-        'trump': 'enemy_trump.png', 'netanyahu': 'enemy_netanyahu.png',
-        'fc': 'fc.png', 'fj': 'fj.png', 'h': 'h.png', 'hl': 'hl.png',
-        'ba': 'ba.png', 'b': 'b.png', 'ufo': 'ufo.png'
-    };
-    const pointsMap = { 'enemy_franco': 25, 'hhh': 15, 'trump': 20, 'netanyahu': 20, 'fc': 15, 'fj': 15, 'h': 10, 'hl': 10, 'ba': 5, 'b': 5, 'ufo': 10 };
-
-    Object.keys(config).forEach(k => { images[k] = new Image(); images[k].src = config[k]; });
-
-    let game = { active: false, paused: false, score: 0, best: localStorage.getItem("mig_best_score") || 0, playerX: window.innerWidth / 2, bullets: [], enemies: [], clouds: [], popups: [], lastSpawn: 0 };
-    document.getElementById("best").innerText = game.best;
-
-    function resize() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
-    window.addEventListener('resize', resize);
-    resize();
-
-    function handleBtnClick() {
-        if(game.paused) togglePause();
-        else resetGame();
-    }
-
-    function togglePause(e) {
-        if(e) e.stopPropagation();
-        if(!game.active) return;
-        game.paused = !game.paused;
-        overlay.style.display = game.paused ? "flex" : "none";
-        msgDisplay.innerHTML = game.paused ? "DURAKLATILDI" : "";
-        mainBtn.innerText = "DEVAM ET";
-    }
-
-    function shoot() {
-        if(!game.active || game.paused) return;
-        game.bullets.push({ x: game.playerX, y: canvas.height - 180, angle: 0 });
-        
-        // Ses çalma hatasını engellemek için tarayıcıyı "uyandır"
-        sndShoot.currentTime = 0;
-        sndShoot.play().catch(()=>{ console.log("Ses için etkileşim bekleniyor..."); });
-    }
-
-    // --- KONTROL MERKEZİ (MOUSE & TOUCH) ---
-
-    // 1. FARE TIKLAMASI (CHROME PC)
-    canvas.addEventListener('mousedown', (e) => {
-        if(game.active && !game.paused) {
-            game.playerX = e.clientX;
-            shoot();
-        }
-    });
-
-    // 2. FARE HAREKETİ (CHROME PC)
-    canvas.addEventListener('mousemove', (e) => {
-        if(game.active && !game.paused) {
-            game.playerX = e.clientX;
-        }
-    });
-
-    // 3. MOBİL DOKUNMA (TELEFON)
-    canvas.addEventListener('touchstart', (e) => {
-        if(game.active && !game.paused) {
-            game.playerX = e.touches[0].clientX;
-            shoot();
-        }
-        e.preventDefault();
-    }, {passive: false});
-
-    // 4. MOBİL PARMAK KAYDIRMA (TELEFON)
-    canvas.addEventListener('touchmove', (e) => {
-        if(game.active && !game.paused) {
-            game.playerX = e.touches[0].clientX;
-        }
-        e.preventDefault();
-    }, {passive: false});
-
-    // 5. KLAVYE (BOŞLUK TUŞU)
-    window.addEventListener('keydown', (e) => {
-        if(e.code === "Space") {
-            if(!game.active) resetGame();
-            else shoot();
-        }
-    });
-
-    function resetGame() {
-        game.active = true; game.paused = false; game.score = 0; game.enemies = []; game.bullets = []; game.popups = [];
-        overlay.style.display = "none";
-        document.getElementById("score").innerText = "0";
-    }
-
-    function endGame() {
-        game.active = false;
-        overlay.style.display = "flex";
-        msgDisplay.innerHTML = "GÖREV BAŞARISIZ<br><span style='color:gold; font-size:25px;'>SKOR: " + game.score + "</span>";
-        mainBtn.innerText = "TEKRAR DENE";
-        if (game.score > game.best) {
-            game.best = game.score;
-            localStorage.setItem("mig_best_score", game.best);
-            document.getElementById("best").innerText = game.best;
-        }
-    }
-
-    function loop(time) {
-        ctx.fillStyle = "#2980b9";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        if (Math.random() < 0.01) game.clouds.push({x: Math.random()*canvas.width, y: -100});
-        ctx.font = "60px Arial";
-        game.clouds.forEach((c, i) => {
-            ctx.fillText("☁️", c.x, c.y);
-            if(!game.paused) c.y += 1.0;
-            if(c.y > canvas.height + 100) game.clouds.splice(i, 1);
-        });
-
-        if (game.active && !game.paused) {
-            let level = Math.floor(game.score / 1000);
-            let spawnRate = Math.max(1500 - (level * 150), 400);
-
-            if (time - game.lastSpawn > spawnRate) {
-                const types = Object.keys(pointsMap);
-                const type = types[Math.floor(Math.random() * types.length)];
-                game.enemies.push({ x: Math.random() * (canvas.width - 80) + 40, y: -100, type: type, speed: 2.0 + (level * 0.3) + Math.random() * 1.5 });
-                game.lastSpawn = time;
-            }
-
-            game.bullets.forEach((b, i) => {
-                b.y -= 12; b.angle += 0.2;
-                if (images.durum.complete) {
-                    ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.angle);
-                    ctx.drawImage(images.durum, -25, -12, 50, 25); ctx.restore();
-                } else {
-                    ctx.font = "30px Arial"; ctx.fillText("🌯", b.x - 15, b.y);
-                }
-                if(b.y < -50) game.bullets.splice(i, 1);
-            });
-
-            game.enemies.forEach((e, ei) => {
-                e.y += e.speed;
-                let img = images[e.type];
-                if(img && img.complete) ctx.drawImage(img, e.x - 40, e.y - 40, 80, 80);
-
-                game.bullets.forEach((b, bi) => {
-                    if (Math.abs(b.x - e.x) < 45 && Math.abs(b.y - e.y) < 45) {
-                        game.score += pointsMap[e.type];
-                        document.getElementById("score").innerText = game.score;
-                        game.popups.push({ x: e.x, y: e.y, t: "+" + pointsMap[e.type], life: 20 });
-                        sndExplode.currentTime = 0; sndExplode.play().catch(()=>{});
-                        game.enemies.splice(ei, 1); game.bullets.splice(bi, 1);
-                    }
-                });
-                if (Math.abs(game.playerX - e.x) < 55 && Math.abs((canvas.height-160) - e.y) < 60) endGame();
-                if (e.y > canvas.height + 100) game.enemies.splice(ei, 1);
-            });
-        }
-
-        if (game.active) {
-            let pImg = images['mig'];
-            if(pImg && pImg.complete) ctx.drawImage(pImg, game.playerX - 60, canvas.height - 200, 120, 160);
-        }
-
-        ctx.font = "bold 25px sans-serif"; ctx.fillStyle = "gold";
-        game.popups.forEach((p, i) => {
-            ctx.globalAlpha = p.life / 20; ctx.fillText(p.t, p.x, p.y);
-            if(!game.paused) { p.y -= 1.5; p.life--; }
-            if(p.life <= 0) game.popups.splice(i, 1);
-        });
-        ctx.globalAlpha = 1.0;
-        requestAnimationFrame(loop);
-    }
-    requestAnimationFrame(loop);
+(function(){const _0x1a=document,_0x2b=_0x1a.getElementById("_cv"),_0x3c=_0x2b.getContext("2d",{alpha:!1}),_0x4d=_0x1a.getElementById("overlay"),_0x5e=_0x1a.getElementById("msg"),_0x6f=_0x1a.getElementById("_mb");const _0x7a=new Audio("shoot.mp3"),_0x8b=new Audio("explosion.mp3");_0x7a.volume=.2;const _0x9c={},_0xa1={'mig':'mig.png','durum':'durum-et-doner_b.png','enemy_franco':'enemy_franco.png','hhh':'hhh.png','trump':'enemy_trump.png','netanyahu':'enemy_netanyahu.png','fc':'fc.png','fj':'fj.png','h':'h.png','hl':'hl.png','ba':'ba.png','b':'b.png','ufo':'ufo.png'},_0xb2={'enemy_franco':25,'hhh':15,'trump':20,'netanyahu':20,'fc':15,'fj':15,'h':10,'hl':10,'ba':5,'b':5,'ufo':10};Object.keys(_0xa1).forEach(_k=>{_0x9c[_k]=new Image(),_0x9c[_k].src=_0xa1[_k]});let _v={a:!1,p:!1,s:0,b:localStorage.getItem("mig_best_score")||0,px:window.innerWidth/2,bu:[],en:[],cl:[],po:[],ls:0};_0x1a.getElementById("_b_").innerText=_v.b;function _rz(){_0x2b.width=window.innerWidth,_0x2b.height=window.innerHeight}window.addEventListener('resize',_rz),_rz();window._hbc=function(){_v.p?_tp():_rg()};window._tp=function(_e){if(_e&&_e.stopPropagation(),!_v.a)return;_v.p=!_v.p,_0x4d.style.display=_v.p?"flex":"none",_0x5e.innerHTML=_v.p?"DURAKLATILDI":"",_0x6f.innerText="DEVAM ET"};function _st(){if(!_v.a||_v.p)return;_v.bu.push({x:_v.px,y:_0x2b.height-180,a:0}),_0x7a.currentTime=0,_0x7a.play().catch(()=>{})} _0x2b.addEventListener('mousedown',_e=>{if(_v.a&&!_v.p)_v.px=_e.clientX,_st()}),_0x2b.addEventListener('mousemove',_e=>{if(_v.a&&!_v.p)_v.px=_e.clientX}),_0x2b.addEventListener('touchstart',_e=>{if(_v.a&&!_v.p)_v.px=_e.touches[0].clientX,_st();_e.preventDefault()},{passive:!1}),_0x2b.addEventListener('touchmove',_e=>{if(_v.a&&!_v.p)_v.px=_e.touches[0].clientX;_e.preventDefault()},{passive:!1}),window.addEventListener('keydown',_e=>{if("Space"===_e.code)_v.a?_st():_rg()});function _rg(){_v.a=!0,_v.p=!1,_v.s=0,_v.en=[],_v.bu=[],_v.po=[],_0x4d.style.display="none",_0x1a.getElementById("_s_").innerText="0"}function _eg(){_v.a=!1,_0x4d.style.display="flex",_0x5e.innerHTML="GÖREV BAŞARISIZ<br><span style='color:gold;font-size:25px;'>SKOR: "+_v.s+"</span>",_0x6f.innerText="TEKRAR DENE",_v.s>_v.b&&(_v.b=_v.s,localStorage.setItem("mig_best_score",_v.b),_0x1a.getElementById("_b_").innerText=_v.b)}function _lp(_t){if(_0x3c.fillStyle="#2980b9",_0x3c.fillRect(0,0,_0x2b.width,_0x2b.height),Math.random()<.01&&_v.cl.push({x:Math.random()*_0x2b.width,y:-100}),_0x3c.font="60px Arial",_v.cl.forEach((_c,_i)=>{_0x3c.fillText("☁️",_c.x,_c.y),_v.p||(_c.y+=1),_c.y>_0x2b.height+100&&_v.cl.splice(_i,1)}),_v.a&&!_v.p){let _lv=Math.floor(_v.s/1e3),_sr=Math.max(1500-150*_lv,400);if(_t-_v.ls>_sr){const _ts=Object.keys(_0xb2),_ty=_ts[Math.floor(Math.random()*_ts.length)];_v.en.push({x:Math.random()*(_0x2b.width-80)+40,y:-100,type:_ty,speed:2+.3*_lv+1.5*Math.random()}),_v.ls=_t}_v.bu.forEach((_b,_i)=>{_b.y-=12,_b.a+=.2,_0x9c.durum.complete?(_0x3c.save(),_0x3c.translate(_b.x,_b.y),_0x3c.rotate(_b.a),_0x3c.drawImage(_0x9c.durum,-25,-12,50,25),_0x3c.restore()):(_0x3c.font="30px Arial",_0x3c.fillText("🌯",_b.x-15,_b.y)),_b.y<-50&&_v.bu.splice(_i,1)}),_v.en.forEach((_e,_ei)=>{_e.y+=_e.speed;let _img=_0x9c[_e.type];_img&&_img.complete&&_0x3c.drawImage(_img,_e.x-40,_e.y-40,80,80),_v.bu.forEach((_b,_bi)=>{Math.abs(_b.x-_e.x)<45&&Math.abs(_b.y-_e.y)<45&&(_v.s+=_0xb2[_e.type],_0x1a.getElementById("_s_").innerText=_v.s,_v.po.push({x:_e.x,y:_e.y,t:"+"+_0xb2[_e.type],life:20}),_0x8b.currentTime=0,_0x8b.play().catch(()=>{}),_v.en.splice(_ei,1),_v.bu.splice(_bi,1))}),Math.abs(_v.px-_e.x)<55&&Math.abs(_0x2b.height-160-_e.y)<60&&_eg(),_e.y>_0x2b.height+100&&_v.en.splice(_ei,1)})}if(_v.a){let _pI=_0x9c.mig;_pI&&_pI.complete&&_0x3c.drawImage(_pI,_v.px-60,_0x2b.height-200,120,160)}_0x3c.font="bold 25px sans-serif",_0x3c.fillStyle="gold",_v.po.forEach((_p,_i)=>{_0x3c.globalAlpha=_p.life/20,_0x3c.fillText(_p.t,_p.x,_p.y),_v.p||(_p.y-=1.5,_p.life--),_p.life<=0&&_v.po.splice(_i,1)}),_0x3c.globalAlpha=1,requestAnimationFrame(_lp)}requestAnimationFrame(_lp)})()
 </script>
 </body>
 </html>
